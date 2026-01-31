@@ -359,6 +359,7 @@ export async function runEmbeddedAttempt(
       userTime,
       userTimeFormat,
       contextFiles,
+      language: params.config?.language,
     });
     const systemPromptReport = buildSystemPromptReport({
       source: "run",

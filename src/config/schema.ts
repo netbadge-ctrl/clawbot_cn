@@ -102,6 +102,7 @@ const GROUP_ORDER: Record<string, number> = {
 };
 
 const FIELD_LABELS: Record<string, string> = {
+  language: "System Language",
   "meta.lastTouchedVersion": "Config Last Touched Version",
   "meta.lastTouchedAt": "Config Last Touched At",
   "update.channel": "Update Channel",
@@ -365,6 +366,8 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 const FIELD_HELP: Record<string, string> = {
+  language:
+    "Language for the system interface and AI responses (en, zh). Changes affect the next agent session.",
   "meta.lastTouchedVersion": "Auto-set when Moltbot writes the config.",
   "meta.lastTouchedAt": "ISO timestamp of the last config write (auto-set).",
   "update.channel": 'Update channel for git + npm installs ("stable", "beta", or "dev").',

@@ -150,6 +150,7 @@ async function resolveContextReport(
     ttsHint,
     runtimeInfo,
     sandboxInfo,
+    language: params.cfg?.language,
   });
 
   return buildSystemPromptReport({

@@ -29,6 +29,7 @@ const NodeHostSchema = z
 
 export const MoltbotSchema = z
   .object({
+    language: z.enum(["en", "zh"]).default("en").catch("en").optional(),
     meta: z
       .object({
         lastTouchedVersion: z.string().optional(),

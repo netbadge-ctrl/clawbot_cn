@@ -1,5 +1,6 @@
 import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
 import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
+import { getTranslations, interpolate, type Locale } from "../i18n/index.js";
 import { listDeliverableMessageChannels } from "../utils/message-channel.js";
 import type { ResolvedTimeFormat } from "./date-time.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
@@ -16,53 +17,68 @@ function buildSkillsSection(params: {
   skillsPrompt?: string;
   isMinimal: boolean;
   readToolName: string;
+  t: ReturnType<typeof getTranslations>;
 }) {
   if (params.isMinimal) return [];
   const trimmed = params.skillsPrompt?.trim();
   if (!trimmed) return [];
+  const { t, readToolName } = params;
   return [
-    "## Skills (mandatory)",
-    "Before replying: scan <available_skills> <description> entries.",
-    `- If exactly one skill clearly applies: read its SKILL.md at <location> with \`${params.readToolName}\`, then follow it.`,
-    "- If multiple could apply: choose the most specific one, then read/follow it.",
-    "- If none clearly apply: do not read any SKILL.md.",
-    "Constraints: never read more than one skill up front; only read after selecting.",
+    t.systemPrompt.skills.header,
+    t.systemPrompt.skills.scan,
+    interpolate(t.systemPrompt.skills.match, { readToolName }),
+    t.systemPrompt.skills.multiple,
+    t.systemPrompt.skills.none,
+    t.systemPrompt.skills.constraints,
     trimmed,
     "",
   ];
 }
 
-function buildMemorySection(params: { isMinimal: boolean; availableTools: Set<string> }) {
+function buildMemorySection(params: {
+  isMinimal: boolean;
+  availableTools: Set<string>;
+  t: ReturnType<typeof getTranslations>;
+}) {
   if (params.isMinimal) return [];
   if (!params.availableTools.has("memory_search") && !params.availableTools.has("memory_get")) {
     return [];
   }
+  const { t } = params;
+  return [t.systemPrompt.memory.header, t.systemPrompt.memory.instruction, ""];
+}
+
+function buildUserIdentitySection(
+  ownerLine: string | undefined,
+  isMinimal: boolean,
+  t: ReturnType<typeof getTranslations>,
+) {
+  if (!ownerLine || isMinimal) return [];
+  return [t.systemPrompt.userIdentity.header, ownerLine, ""];
+}
+
+function buildTimeSection(params: {
+  userTimezone?: string;
+  t: ReturnType<typeof getTranslations>;
+}) {
+  if (!params.userTimezone) return [];
+  const { t } = params;
   return [
-    "## Memory Recall",
-    "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search on MEMORY.md + memory/*.md; then use memory_get to pull only the needed lines. If low confidence after search, say you checked.",
+    t.systemPrompt.dateTime.header,
+    interpolate(t.systemPrompt.dateTime.timeZone, { timeZone: params.userTimezone }),
     "",
   ];
 }
 
-function buildUserIdentitySection(ownerLine: string | undefined, isMinimal: boolean) {
-  if (!ownerLine || isMinimal) return [];
-  return ["## User Identity", ownerLine, ""];
-}
-
-function buildTimeSection(params: { userTimezone?: string }) {
-  if (!params.userTimezone) return [];
-  return ["## Current Date & Time", `Time zone: ${params.userTimezone}`, ""];
-}
-
-function buildReplyTagsSection(isMinimal: boolean) {
+function buildReplyTagsSection(isMinimal: boolean, t: ReturnType<typeof getTranslations>) {
   if (isMinimal) return [];
   return [
-    "## Reply Tags",
-    "To request a native reply/quote on supported surfaces, include one tag in your reply:",
-    "- [[reply_to_current]] replies to the triggering message.",
-    "- [[reply_to:<id>]] replies to a specific message id when you have it.",
-    "Whitespace inside the tag is allowed (e.g. [[ reply_to_current ]] / [[ reply_to: 123 ]]).",
-    "Tags are stripped before sending; support depends on the current channel config.",
+    t.systemPrompt.replyTags.header,
+    t.systemPrompt.replyTags.instruction,
+    t.systemPrompt.replyTags.current,
+    t.systemPrompt.replyTags.specific,
+    t.systemPrompt.replyTags.whitespace,
+    t.systemPrompt.replyTags.stripped,
     "",
   ];
 }
@@ -74,25 +90,27 @@ function buildMessagingSection(params: {
   inlineButtonsEnabled: boolean;
   runtimeChannel?: string;
   messageToolHints?: string[];
+  t: ReturnType<typeof getTranslations>;
 }) {
   if (params.isMinimal) return [];
+  const { t, availableTools, messageChannelOptions, inlineButtonsEnabled, runtimeChannel } = params;
   return [
-    "## Messaging",
-    "- Reply in current session → automatically routes to the source channel (Signal, Telegram, etc.)",
-    "- Cross-session messaging → use sessions_send(sessionKey, message)",
-    "- Never use exec/curl for provider messaging; Moltbot handles all routing internally.",
-    params.availableTools.has("message")
+    t.systemPrompt.messaging.header,
+    t.systemPrompt.messaging.replyCurrent,
+    t.systemPrompt.messaging.crossSession,
+    t.systemPrompt.messaging.noExec,
+    availableTools.has("message")
       ? [
           "",
-          "### message tool",
-          "- Use `message` for proactive sends + channel actions (polls, reactions, etc.).",
-          "- For `action=send`, include `to` and `message`.",
-          `- If multiple channels are configured, pass \`channel\` (${params.messageChannelOptions}).`,
-          `- If you use \`message\` (\`action=send\`) to deliver your user-visible reply, respond with ONLY: ${SILENT_REPLY_TOKEN} (avoid duplicate replies).`,
-          params.inlineButtonsEnabled
-            ? "- Inline buttons supported. Use `action=send` with `buttons=[[{text,callback_data}]]` (callback_data routes back as a user message)."
-            : params.runtimeChannel
-              ? `- Inline buttons not enabled for ${params.runtimeChannel}. If you need them, ask to set ${params.runtimeChannel}.capabilities.inlineButtons ("dm"|"group"|"all"|"allowlist").`
+          t.systemPrompt.messaging.toolHeader,
+          t.systemPrompt.messaging.proactive,
+          t.systemPrompt.messaging.sendArgs,
+          interpolate(t.systemPrompt.messaging.multiChannel, { channels: messageChannelOptions }),
+          t.systemPrompt.messaging.silentReply,
+          inlineButtonsEnabled
+            ? t.systemPrompt.messaging.inlineButtons
+            : runtimeChannel
+              ? interpolate(t.systemPrompt.messaging.noButtons, { channel: runtimeChannel })
               : "",
           ...(params.messageToolHints ?? []),
         ]
@@ -110,18 +128,24 @@ function buildVoiceSection(params: { isMinimal: boolean; ttsHint?: string }) {
   return ["## Voice (TTS)", hint, ""];
 }
 
-function buildDocsSection(params: { docsPath?: string; isMinimal: boolean; readToolName: string }) {
+function buildDocsSection(params: {
+  docsPath?: string;
+  isMinimal: boolean;
+  readToolName: string;
+  t: ReturnType<typeof getTranslations>;
+}) {
   const docsPath = params.docsPath?.trim();
   if (!docsPath || params.isMinimal) return [];
+  const { t } = params;
   return [
-    "## Documentation",
-    `Moltbot docs: ${docsPath}`,
-    "Mirror: https://docs.molt.bot",
-    "Source: https://github.com/moltbot/moltbot",
-    "Community: https://discord.com/invite/clawd",
-    "Find new skills: https://clawdhub.com",
-    "For Moltbot behavior, commands, config, or architecture: consult local docs first.",
-    "When diagnosing issues, run `moltbot status` yourself when possible; only ask the user if you lack access (e.g., sandboxed).",
+    t.systemPrompt.docs.header,
+    interpolate(t.systemPrompt.docs.moltbotDocs, { path: docsPath }),
+    t.systemPrompt.docs.mirror,
+    t.systemPrompt.docs.source,
+    t.systemPrompt.docs.community,
+    t.systemPrompt.docs.hub,
+    t.systemPrompt.docs.localFirst,
+    t.systemPrompt.docs.status,
     "",
   ];
 }
@@ -178,35 +202,10 @@ export function buildAgentSystemPrompt(params: {
     level: "minimal" | "extensive";
     channel: string;
   };
+  language?: Locale;
 }) {
-  const coreToolSummaries: Record<string, string> = {
-    read: "Read file contents",
-    write: "Create or overwrite files",
-    edit: "Make precise edits to files",
-    apply_patch: "Apply multi-file patches",
-    grep: "Search file contents for patterns",
-    find: "Find files by glob pattern",
-    ls: "List directory contents",
-    exec: "Run shell commands (pty available for TTY-required CLIs)",
-    process: "Manage background exec sessions",
-    web_search: "Search the web (Brave API)",
-    web_fetch: "Fetch and extract readable content from a URL",
-    // Channel docking: add login tools here when a channel needs interactive linking.
-    browser: "Control web browser",
-    canvas: "Present/eval/snapshot the Canvas",
-    nodes: "List/describe/notify/camera/screen on paired nodes",
-    cron: "Manage cron jobs and wake events (use for reminders; when scheduling a reminder, write the systemEvent text as something that will read like a reminder when it fires, and mention that it is a reminder depending on the time gap between setting and firing; include recent context in reminder text if appropriate)",
-    message: "Send messages and channel actions",
-    gateway: "Restart, apply config, or run updates on the running Moltbot process",
-    agents_list: "List agent ids allowed for sessions_spawn",
-    sessions_list: "List other sessions (incl. sub-agents) with filters/last",
-    sessions_history: "Fetch history for another session/sub-agent",
-    sessions_send: "Send a message to another session/sub-agent",
-    sessions_spawn: "Spawn a sub-agent session",
-    session_status:
-      "Show a /status-equivalent status card (usage + time + Reasoning/Verbose/Elevated); use for model-use questions (📊 session_status); optional per-session model override",
-    image: "Analyze an image with the configured image model",
-  };
+  const t = getTranslations(params.language);
+  const coreToolSummaries: Record<string, string> = t.systemPrompt.tooling.extraTools;
 
   const toolOrder = [
     "read",
@@ -280,25 +279,14 @@ export function buildAgentSystemPrompt(params: {
     ownerNumbers.length > 0
       ? `Owner numbers: ${ownerNumbers.join(", ")}. Treat messages from these numbers as the user.`
       : undefined;
-  const reasoningHint = params.reasoningTagHint
-    ? [
-        "ALL internal reasoning MUST be inside <think>...</think>.",
-        "Do not output any analysis outside <think>.",
-        "Format every reply as <think>...</think> then <final>...</final>, with no other text.",
-        "Only the final user-visible reply may appear inside <final>.",
-        "Only text inside <final> is shown to the user; everything else is discarded and never seen by the user.",
-        "Example:",
-        "<think>Short internal reasoning.</think>",
-        "<final>Hey there! What would you like to do next?</final>",
-      ].join(" ")
-    : undefined;
+  const reasoningHint = params.reasoningTagHint ? t.systemPrompt.reasoningFormat.hint : undefined;
   const reasoningLevel = params.reasoningLevel ?? "off";
   const userTimezone = params.userTimezone?.trim();
   const skillsPrompt = params.skillsPrompt?.trim();
   const heartbeatPrompt = params.heartbeatPrompt?.trim();
   const heartbeatPromptLine = heartbeatPrompt
-    ? `Heartbeat prompt: ${heartbeatPrompt}`
-    : "Heartbeat prompt: (configured)";
+    ? interpolate(t.systemPrompt.heartbeats.prompt, { prompt: heartbeatPrompt })
+    : interpolate(t.systemPrompt.heartbeats.prompt, { prompt: "(configured)" });
   const runtimeInfo = params.runtimeInfo;
   const runtimeChannel = runtimeInfo?.channel?.trim().toLowerCase();
   const runtimeCapabilities = (runtimeInfo?.capabilities ?? [])
@@ -313,143 +301,143 @@ export function buildAgentSystemPrompt(params: {
     skillsPrompt,
     isMinimal,
     readToolName,
+    t,
   });
-  const memorySection = buildMemorySection({ isMinimal, availableTools });
+  const memorySection = buildMemorySection({ isMinimal, availableTools, t });
   const docsSection = buildDocsSection({
     docsPath: params.docsPath,
     isMinimal,
     readToolName,
+    t,
   });
   const workspaceNotes = (params.workspaceNotes ?? []).map((note) => note.trim()).filter(Boolean);
 
   // For "none" mode, return just the basic identity line
   if (promptMode === "none") {
-    return "You are a personal assistant running inside Moltbot.";
+    return t.systemPrompt.intro;
   }
 
   const lines = [
-    "You are a personal assistant running inside Moltbot.",
+    t.systemPrompt.intro,
     "",
-    "## Tooling",
-    "Tool availability (filtered by policy):",
-    "Tool names are case-sensitive. Call tools exactly as listed.",
+    t.systemPrompt.tooling.header,
+    t.systemPrompt.tooling.availability,
+    t.systemPrompt.tooling.caseSensitive,
     toolLines.length > 0
       ? toolLines.join("\n")
       : [
-          "Pi lists the standard tools above. This runtime enables:",
-          "- grep: search file contents for patterns",
-          "- find: find files by glob pattern",
-          "- ls: list directory contents",
-          "- apply_patch: apply multi-file patches",
-          `- ${execToolName}: run shell commands (supports background via yieldMs/background)`,
-          `- ${processToolName}: manage background exec sessions`,
-          "- browser: control clawd's dedicated browser",
-          "- canvas: present/eval/snapshot the Canvas",
-          "- nodes: list/describe/notify/camera/screen on paired nodes",
-          "- cron: manage cron jobs and wake events (use for reminders; when scheduling a reminder, write the systemEvent text as something that will read like a reminder when it fires, and mention that it is a reminder depending on the time gap between setting and firing; include recent context in reminder text if appropriate)",
-          "- sessions_list: list sessions",
-          "- sessions_history: fetch session history",
-          "- sessions_send: send to another session",
+          t.systemPrompt.tooling.standardTools,
+          `- grep: ${t.systemPrompt.tooling.extraTools.grep}`,
+          `- find: ${t.systemPrompt.tooling.extraTools.find}`,
+          `- ls: ${t.systemPrompt.tooling.extraTools.ls}`,
+          `- apply_patch: ${t.systemPrompt.tooling.extraTools.apply_patch}`,
+          `- ${execToolName}: ${t.systemPrompt.tooling.extraTools.exec}`,
+          `- ${processToolName}: ${t.systemPrompt.tooling.extraTools.process}`,
+          `- browser: ${t.systemPrompt.tooling.extraTools.browser}`,
+          `- canvas: ${t.systemPrompt.tooling.extraTools.canvas}`,
+          `- nodes: ${t.systemPrompt.tooling.extraTools.nodes}`,
+          `- cron: ${t.systemPrompt.tooling.extraTools.cron}`,
+          `- sessions_list: ${t.systemPrompt.tooling.extraTools.sessions_list}`,
+          `- sessions_history: ${t.systemPrompt.tooling.extraTools.sessions_history}`,
+          `- sessions_send: ${t.systemPrompt.tooling.extraTools.sessions_send}`,
         ].join("\n"),
-    "TOOLS.md does not control tool availability; it is user guidance for how to use external tools.",
-    "If a task is more complex or takes longer, spawn a sub-agent. It will do the work for you and ping you when it's done. You can always check up on it.",
+    t.systemPrompt.tooling.docsDisclaimer,
+    t.systemPrompt.tooling.subAgentAdvice,
     "",
-    "## Tool Call Style",
-    "Default: do not narrate routine, low-risk tool calls (just call the tool).",
-    "Narrate only when it helps: multi-step work, complex/challenging problems, sensitive actions (e.g., deletions), or when the user explicitly asks.",
-    "Keep narration brief and value-dense; avoid repeating obvious steps.",
-    "Use plain human language for narration unless in a technical context.",
+    t.systemPrompt.toolCallStyle.header,
+    t.systemPrompt.toolCallStyle.default,
+    t.systemPrompt.toolCallStyle.narrate,
+    t.systemPrompt.toolCallStyle.brief,
+    t.systemPrompt.toolCallStyle.plain,
     "",
-    "## Moltbot CLI Quick Reference",
-    "Moltbot is controlled via subcommands. Do not invent commands.",
-    "To manage the Gateway daemon service (start/stop/restart):",
-    "- moltbot gateway status",
-    "- moltbot gateway start",
-    "- moltbot gateway stop",
-    "- moltbot gateway restart",
-    "If unsure, ask the user to run `moltbot help` (or `moltbot gateway --help`) and paste the output.",
+    t.systemPrompt.cli.header,
+    t.systemPrompt.cli.description,
+    t.systemPrompt.cli.gatewayManagement,
+    t.systemPrompt.cli.helpAdvice,
     "",
     ...skillsSection,
     ...memorySection,
     // Skip self-update for subagent/none modes
-    hasGateway && !isMinimal ? "## Moltbot Self-Update" : "",
+    hasGateway && !isMinimal ? t.systemPrompt.selfUpdate.header : "",
     hasGateway && !isMinimal
       ? [
-          "Get Updates (self-update) is ONLY allowed when the user explicitly asks for it.",
-          "Do not run config.apply or update.run unless the user explicitly requests an update or config change; if it's not explicit, ask first.",
-          "Actions: config.get, config.schema, config.apply (validate + write full config, then restart), update.run (update deps or git, then restart).",
-          "After restart, Moltbot pings the last active session automatically.",
+          t.systemPrompt.selfUpdate.explicitOnly,
+          t.systemPrompt.selfUpdate.noImplicit,
+          t.systemPrompt.selfUpdate.actions,
+          t.systemPrompt.selfUpdate.restartPing,
         ].join("\n")
       : "",
     hasGateway && !isMinimal ? "" : "",
     "",
     // Skip model aliases for subagent/none modes
     params.modelAliasLines && params.modelAliasLines.length > 0 && !isMinimal
-      ? "## Model Aliases"
+      ? t.systemPrompt.modelAliases.header
       : "",
     params.modelAliasLines && params.modelAliasLines.length > 0 && !isMinimal
-      ? "Prefer aliases when specifying model overrides; full provider/model is also accepted."
+      ? t.systemPrompt.modelAliases.instruction
       : "",
     params.modelAliasLines && params.modelAliasLines.length > 0 && !isMinimal
       ? params.modelAliasLines.join("\n")
       : "",
     params.modelAliasLines && params.modelAliasLines.length > 0 && !isMinimal ? "" : "",
-    "## Workspace",
-    `Your working directory is: ${params.workspaceDir}`,
-    "Treat this directory as the single global workspace for file operations unless explicitly instructed otherwise.",
+    t.systemPrompt.workspace.header,
+    interpolate(t.systemPrompt.workspace.directory, { dir: params.workspaceDir }),
+    t.systemPrompt.workspace.instruction,
     ...workspaceNotes,
     "",
     ...docsSection,
-    params.sandboxInfo?.enabled ? "## Sandbox" : "",
+    params.sandboxInfo?.enabled ? t.systemPrompt.sandbox.header : "",
     params.sandboxInfo?.enabled
       ? [
-          "You are running in a sandboxed runtime (tools execute in Docker).",
-          "Some tools may be unavailable due to sandbox policy.",
-          "Sub-agents stay sandboxed (no elevated/host access). Need outside-sandbox read/write? Don't spawn; ask first.",
+          t.systemPrompt.sandbox.intro,
+          t.systemPrompt.sandbox.limited,
+          t.systemPrompt.sandbox.subAgent,
           params.sandboxInfo.workspaceDir
-            ? `Sandbox workspace: ${params.sandboxInfo.workspaceDir}`
+            ? interpolate(t.systemPrompt.sandbox.workspace, {
+                dir: params.sandboxInfo.workspaceDir,
+              })
             : "",
           params.sandboxInfo.workspaceAccess
-            ? `Agent workspace access: ${params.sandboxInfo.workspaceAccess}${
-                params.sandboxInfo.agentWorkspaceMount
+            ? interpolate(t.systemPrompt.sandbox.access, {
+                access: params.sandboxInfo.workspaceAccess,
+                mount: params.sandboxInfo.agentWorkspaceMount
                   ? ` (mounted at ${params.sandboxInfo.agentWorkspaceMount})`
-                  : ""
-              }`
+                  : "",
+              })
             : "",
-          params.sandboxInfo.browserBridgeUrl ? "Sandbox browser: enabled." : "",
+          params.sandboxInfo.browserBridgeUrl ? t.systemPrompt.sandbox.browserBridge : "",
           params.sandboxInfo.browserNoVncUrl
-            ? `Sandbox browser observer (noVNC): ${params.sandboxInfo.browserNoVncUrl}`
+            ? interpolate(t.systemPrompt.sandbox.observer, {
+                url: params.sandboxInfo.browserNoVncUrl,
+              })
             : "",
           params.sandboxInfo.hostBrowserAllowed === true
-            ? "Host browser control: allowed."
+            ? t.systemPrompt.sandbox.hostControlAllowed
             : params.sandboxInfo.hostBrowserAllowed === false
-              ? "Host browser control: blocked."
+              ? t.systemPrompt.sandbox.hostControlBlocked
               : "",
+          params.sandboxInfo.elevated?.allowed ? t.systemPrompt.sandbox.elevatedAvailable : "",
+          params.sandboxInfo.elevated?.allowed ? t.systemPrompt.sandbox.elevatedToggle : "",
+          params.sandboxInfo.elevated?.allowed ? t.systemPrompt.sandbox.elevatedSend : "",
           params.sandboxInfo.elevated?.allowed
-            ? "Elevated exec is available for this session."
-            : "",
-          params.sandboxInfo.elevated?.allowed
-            ? "User can toggle with /elevated on|off|ask|full."
-            : "",
-          params.sandboxInfo.elevated?.allowed
-            ? "You may also send /elevated on|off|ask|full when needed."
-            : "",
-          params.sandboxInfo.elevated?.allowed
-            ? `Current elevated level: ${params.sandboxInfo.elevated.defaultLevel} (ask runs exec on host with approvals; full auto-approves).`
+            ? interpolate(t.systemPrompt.sandbox.currentLevel, {
+                level: params.sandboxInfo.elevated.defaultLevel,
+              })
             : "",
         ]
           .filter(Boolean)
           .join("\n")
       : "",
     params.sandboxInfo?.enabled ? "" : "",
-    ...buildUserIdentitySection(ownerLine, isMinimal),
+    ...buildUserIdentitySection(ownerLine, isMinimal, t),
     ...buildTimeSection({
       userTimezone,
+      t,
     }),
-    "## Workspace Files (injected)",
-    "These user-editable files are loaded by Moltbot and included below in Project Context.",
+    t.systemPrompt.workspace.filesHeader,
+    t.systemPrompt.workspace.filesInstruction,
     "",
-    ...buildReplyTagsSection(isMinimal),
+    ...buildReplyTagsSection(isMinimal, t),
     ...buildMessagingSection({
       isMinimal,
       availableTools,
@@ -457,6 +445,7 @@ export function buildAgentSystemPrompt(params: {
       inlineButtonsEnabled,
       runtimeChannel,
       messageToolHints: params.messageToolHints,
+      t,
     }),
     ...buildVoiceSection({ isMinimal, ttsHint: params.ttsHint }),
   ];
@@ -469,29 +458,27 @@ export function buildAgentSystemPrompt(params: {
   }
   if (params.reactionGuidance) {
     const { level, channel } = params.reactionGuidance;
+    // Logic for reaction guidance is quite specific, might need further i18n structure if we want to fully support it
+    // For now I'll use the provided structured texts in TranslationKeys
     const guidanceText =
       level === "minimal"
         ? [
-            `Reactions are enabled for ${channel} in MINIMAL mode.`,
-            "React ONLY when truly relevant:",
-            "- Acknowledge important user requests or confirmations",
-            "- Express genuine sentiment (humor, appreciation) sparingly",
-            "- Avoid reacting to routine messages or your own replies",
-            "Guideline: at most 1 reaction per 5-10 exchanges.",
+            interpolate(t.systemPrompt.reactions.minimal.intro, { channel }),
+            t.systemPrompt.reactions.minimal.instruction,
+            ...t.systemPrompt.reactions.minimal.list,
+            t.systemPrompt.reactions.minimal.guideline,
           ].join("\n")
         : [
-            `Reactions are enabled for ${channel} in EXTENSIVE mode.`,
-            "Feel free to react liberally:",
-            "- Acknowledge messages with appropriate emojis",
-            "- Express sentiment and personality through reactions",
-            "- React to interesting content, humor, or notable events",
-            "- Use reactions to confirm understanding or agreement",
-            "Guideline: react whenever it feels natural.",
+            interpolate(t.systemPrompt.reactions.extensive.intro, { channel }),
+            t.systemPrompt.reactions.extensive.instruction,
+            ...t.systemPrompt.reactions.extensive.list,
+            t.systemPrompt.reactions.extensive.guideline,
           ].join("\n");
-    lines.push("## Reactions", guidanceText, "");
+
+    lines.push(t.systemPrompt.reactions.header, guidanceText, "");
   }
   if (reasoningHint) {
-    lines.push("## Reasoning Format", reasoningHint, "");
+    lines.push(t.systemPrompt.reasoningFormat.header, reasoningHint, "");
   }
 
   const contextFiles = params.contextFiles ?? [];
@@ -501,11 +488,9 @@ export function buildAgentSystemPrompt(params: {
       const baseName = normalizedPath.split("/").pop() ?? normalizedPath;
       return baseName.toLowerCase() === "soul.md";
     });
-    lines.push("# Project Context", "", "The following project context files have been loaded:");
+    lines.push(t.systemPrompt.projectContext.header, "", t.systemPrompt.projectContext.loaded);
     if (hasSoulFile) {
-      lines.push(
-        "If SOUL.md is present, embody its persona and tone. Avoid stiff, generic replies; follow its guidance unless higher-priority instructions override it.",
-      );
+      lines.push(t.systemPrompt.projectContext.soul);
     }
     lines.push("");
     for (const file of contextFiles) {
@@ -516,17 +501,17 @@ export function buildAgentSystemPrompt(params: {
   // Skip silent replies for subagent/none modes
   if (!isMinimal) {
     lines.push(
-      "## Silent Replies",
-      `When you have nothing to say, respond with ONLY: ${SILENT_REPLY_TOKEN}`,
+      t.systemPrompt.silentReplies.header,
+      interpolate(t.systemPrompt.silentReplies.instruction, { token: SILENT_REPLY_TOKEN }),
       "",
-      "⚠️ Rules:",
-      "- It must be your ENTIRE message — nothing else",
-      `- Never append it to an actual response (never include "${SILENT_REPLY_TOKEN}" in real replies)`,
-      "- Never wrap it in markdown or code blocks",
+      t.systemPrompt.silentReplies.rules,
+      t.systemPrompt.silentReplies.ruleEntire,
+      interpolate(t.systemPrompt.silentReplies.ruleAppend, { token: SILENT_REPLY_TOKEN }),
+      t.systemPrompt.silentReplies.ruleWrap,
       "",
-      `❌ Wrong: "Here's help... ${SILENT_REPLY_TOKEN}"`,
-      `❌ Wrong: "${SILENT_REPLY_TOKEN}"`,
-      `✅ Right: ${SILENT_REPLY_TOKEN}`,
+      interpolate(t.systemPrompt.silentReplies.wrong1, { token: SILENT_REPLY_TOKEN }),
+      interpolate(t.systemPrompt.silentReplies.wrong2, { token: SILENT_REPLY_TOKEN }),
+      interpolate(t.systemPrompt.silentReplies.right, { token: SILENT_REPLY_TOKEN }),
       "",
     );
   }
@@ -534,20 +519,19 @@ export function buildAgentSystemPrompt(params: {
   // Skip heartbeats for subagent/none modes
   if (!isMinimal) {
     lines.push(
-      "## Heartbeats",
+      t.systemPrompt.heartbeats.header,
       heartbeatPromptLine,
-      "If you receive a heartbeat poll (a user message matching the heartbeat prompt above), and there is nothing that needs attention, reply exactly:",
-      "HEARTBEAT_OK",
-      'Moltbot treats a leading/trailing "HEARTBEAT_OK" as a heartbeat ack (and may discard it).',
-      'If something needs attention, do NOT include "HEARTBEAT_OK"; reply with the alert text instead.',
+      t.systemPrompt.heartbeats.instruction,
+      t.systemPrompt.heartbeats.ack,
+      t.systemPrompt.heartbeats.attention,
       "",
     );
   }
 
   lines.push(
-    "## Runtime",
+    t.systemPrompt.runtime.header,
     buildRuntimeLine(runtimeInfo, runtimeChannel, runtimeCapabilities, params.defaultThinkLevel),
-    `Reasoning: ${reasoningLevel} (hidden unless on/stream). Toggle /reasoning; /status shows Reasoning when enabled.`,
+    interpolate(t.systemPrompt.runtime.reasoning, { level: reasoningLevel }),
   );
 
   return lines.filter(Boolean).join("\n");

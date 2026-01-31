@@ -23,8 +23,10 @@ import type { NodeHostConfig } from "./types.node-host.js";
 import type { PluginsConfig } from "./types.plugins.js";
 import type { SkillsConfig } from "./types.skills.js";
 import type { ToolsConfig } from "./types.tools.js";
+import type { Locale } from "../i18n/types.js";
 
 export type MoltbotConfig = {
+  language?: Locale;
   meta?: {
     /** Last moltbot version that wrote this config. */
     lastTouchedVersion?: string;

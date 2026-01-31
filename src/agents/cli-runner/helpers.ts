@@ -212,6 +212,7 @@ export function buildSystemPrompt(params: {
     userTimeFormat,
     contextFiles: params.contextFiles,
     ttsHint,
+    language: params.config?.language,
   });
 }
 

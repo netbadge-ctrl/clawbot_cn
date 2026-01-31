@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { buildAgentSystemPrompt, buildRuntimeLine } from "./system-prompt.js";
 
 describe("buildAgentSystemPrompt", () => {
+  it("generates Chinese prompt when language is zh", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/clawd",
+      language: "zh",
+    });
+
+    expect(prompt).toContain("您是运行在 Moltbot 内部的个人助手。");
+    expect(prompt).toContain("## 工具使用");
+    expect(prompt).toContain("您的工作目录是：/tmp/clawd");
+  });
+
   it("includes owner numbers when provided", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/clawd",
