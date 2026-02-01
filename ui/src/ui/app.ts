@@ -57,7 +57,10 @@ import {
   setTab as setTabInternal,
   setTheme as setThemeInternal,
   onPopState as onPopStateInternal,
+  setLanguage as setLanguageInternal,
+  syncLanguageWithSettings,
 } from "./app-settings";
+import { I18nService, type Locale } from "../i18n";
 import {
   handleAbortChat as handleAbortChatInternal,
   handleSendChat as handleSendChatInternal,
@@ -111,6 +114,7 @@ export class MoltbotApp extends LitElement {
   private eventLogBuffer: EventLogEntry[] = [];
   private toolStreamSyncTimer: number | null = null;
   private sidebarCloseTimer: number | null = null;
+  private i18n = new I18nService(this);
 
   @state() assistantName = injectedAssistantIdentity.name;
   @state() assistantAvatar = injectedAssistantIdentity.avatar;
@@ -278,6 +282,7 @@ export class MoltbotApp extends LitElement {
   }
 
   protected firstUpdated() {
+    syncLanguageWithSettings(this as unknown as Parameters<typeof syncLanguageWithSettings>[0]);
     handleFirstUpdated(this as unknown as Parameters<typeof handleFirstUpdated>[0]);
   }
 
@@ -349,6 +354,13 @@ export class MoltbotApp extends LitElement {
       this as unknown as Parameters<typeof setThemeInternal>[0],
       next,
       context,
+    );
+  }
+
+  setLanguage(next: Locale) {
+    setLanguageInternal(
+      this as unknown as Parameters<typeof setLanguageInternal>[0],
+      next,
     );
   }
 

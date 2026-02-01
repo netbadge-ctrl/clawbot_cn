@@ -1,15 +1,17 @@
 import { html } from "lit";
 import { repeat } from "lit/directives/repeat.js";
+import { t } from "../i18n";
 
 import type { AppViewState } from "./app-view-state";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation";
 import { icons } from "./icons";
 import { loadChatHistory } from "./controllers/chat";
 import { refreshChat } from "./app-chat";
-import { syncUrlWithSessionKey } from "./app-settings";
+import { syncUrlWithSessionKey, setLanguage } from "./app-settings";
 import type { SessionsListResult } from "./types";
 import type { ThemeMode } from "./theme";
 import type { ThemeTransitionContext } from "./theme-transition";
+import type { Locale } from "../i18n";
 
 export function renderTab(state: AppViewState, tab: Tab) {
   const href = pathForTab(tab, state.basePath);
@@ -18,24 +20,41 @@ export function renderTab(state: AppViewState, tab: Tab) {
       href=${href}
       class="nav-item ${state.tab === tab ? "active" : ""}"
       @click=${(event: MouseEvent) => {
-        if (
-          event.defaultPrevented ||
-          event.button !== 0 ||
-          event.metaKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          event.altKey
-        ) {
-          return;
-        }
-        event.preventDefault();
-        state.setTab(tab);
-      }}
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      event.preventDefault();
+      state.setTab(tab);
+    }}
       title=${titleForTab(tab)}
     >
       <span class="nav-item__icon" aria-hidden="true">${icons[iconForTab(tab)]}</span>
       <span class="nav-item__text">${titleForTab(tab)}</span>
     </a>
+  `;
+}
+
+export function renderLanguageToggle(state: AppViewState) {
+  const current = state.settings.language ?? "en";
+  const next = current === "en" ? "zh" : "en";
+  const label = current === "en" ? "English" : "中文";
+
+  return html`
+    <button
+      class="btn btn--sm btn--icon"
+      @click=${() => state.setLanguage(next)}
+      title=${`${t("settings").language}: ${label}`}
+    >
+      ${icons.globe}
+      <span style="font-size: 0.75rem; font-weight: 500; margin-left: 4px;">${current.toUpperCase()}</span>
+    </button>
   `;
 }
 
@@ -60,42 +79,42 @@ export function renderChatControls(state: AppViewState) {
           .value=${state.sessionKey}
           ?disabled=${!state.connected}
           @change=${(e: Event) => {
-            const next = (e.target as HTMLSelectElement).value;
-            state.sessionKey = next;
-            state.chatMessage = "";
-            state.chatStream = null;
-            state.chatStreamStartedAt = null;
-            state.chatRunId = null;
-            state.resetToolStream();
-            state.resetChatScroll();
-            state.applySettings({
-              ...state.settings,
-              sessionKey: next,
-              lastActiveSessionKey: next,
-            });
-            void state.loadAssistantIdentity();
-            syncUrlWithSessionKey(state, next, true);
-            void loadChatHistory(state);
-          }}
+      const next = (e.target as HTMLSelectElement).value;
+      state.sessionKey = next;
+      state.chatMessage = "";
+      state.chatStream = null;
+      state.chatStreamStartedAt = null;
+      state.chatRunId = null;
+      state.resetToolStream();
+      state.resetChatScroll();
+      state.applySettings({
+        ...state.settings,
+        sessionKey: next,
+        lastActiveSessionKey: next,
+      });
+      void state.loadAssistantIdentity();
+      syncUrlWithSessionKey(state, next, true);
+      void loadChatHistory(state);
+    }}
         >
           ${repeat(
-            sessionOptions,
-            (entry) => entry.key,
-            (entry) =>
-              html`<option value=${entry.key}>
+      sessionOptions,
+      (entry) => entry.key,
+      (entry) =>
+        html`<option value=${entry.key}>
                 ${entry.displayName ?? entry.key}
               </option>`,
-          )}
+    )}
         </select>
       </label>
       <button
         class="btn btn--sm btn--icon"
         ?disabled=${state.chatLoading || !state.connected}
         @click=${() => {
-          state.resetToolStream();
-          void refreshChat(state as unknown as Parameters<typeof refreshChat>[0]);
-        }}
-        title="Refresh chat data"
+      state.resetToolStream();
+      void refreshChat(state as any);
+    }}
+        title=${t("chat").refreshTooltip}
       >
         ${refreshIcon}
       </button>
@@ -104,16 +123,16 @@ export function renderChatControls(state: AppViewState) {
         class="btn btn--sm btn--icon ${showThinking ? "active" : ""}"
         ?disabled=${disableThinkingToggle}
         @click=${() => {
-          if (disableThinkingToggle) return;
-          state.applySettings({
-            ...state.settings,
-            chatShowThinking: !state.settings.chatShowThinking,
-          });
-        }}
+      if (disableThinkingToggle) return;
+      state.applySettings({
+        ...state.settings,
+        chatShowThinking: !state.settings.chatShowThinking,
+      });
+    }}
         aria-pressed=${showThinking}
         title=${disableThinkingToggle
-          ? "Disabled during onboarding"
-          : "Toggle assistant thinking/working output"}
+      ? t("common").disabledOnboarding
+      : t("chat").thinkingTooltip}
       >
         ${icons.brain}
       </button>
@@ -121,16 +140,16 @@ export function renderChatControls(state: AppViewState) {
         class="btn btn--sm btn--icon ${focusActive ? "active" : ""}"
         ?disabled=${disableFocusToggle}
         @click=${() => {
-          if (disableFocusToggle) return;
-          state.applySettings({
-            ...state.settings,
-            chatFocusMode: !state.settings.chatFocusMode,
-          });
-        }}
+      if (disableFocusToggle) return;
+      state.applySettings({
+        ...state.settings,
+        chatFocusMode: !state.settings.chatFocusMode,
+      });
+    }}
         aria-pressed=${focusActive}
         title=${disableFocusToggle
-          ? "Disabled during onboarding"
-          : "Toggle focus mode (hide sidebar + page header)"}
+      ? t("common").disabledOnboarding
+      : t("chat").focusTooltip}
       >
         ${focusIcon}
       </button>
@@ -165,7 +184,7 @@ function resolveSessionOptions(
   const options: Array<{ key: string; displayName?: string }> = [];
 
   const resolvedMain =
-    mainSessionKey && sessions?.sessions?.find((s) => s.key === mainSessionKey);
+    mainSessionKey ? sessions?.sessions?.find((s) => s.key === mainSessionKey) : undefined;
   const resolvedCurrent = sessions?.sessions?.find((s) => s.key === sessionKey);
 
   // Add main session key first
@@ -215,8 +234,8 @@ export function renderThemeToggle(state: AppViewState) {
           class="theme-toggle__button ${state.theme === "system" ? "active" : ""}"
           @click=${applyTheme("system")}
           aria-pressed=${state.theme === "system"}
-          aria-label="System theme"
-          title="System"
+          aria-label=${t("settings").themeSystem}
+          title=${t("settings").themeSystem}
         >
           ${renderMonitorIcon()}
         </button>
@@ -224,8 +243,8 @@ export function renderThemeToggle(state: AppViewState) {
           class="theme-toggle__button ${state.theme === "light" ? "active" : ""}"
           @click=${applyTheme("light")}
           aria-pressed=${state.theme === "light"}
-          aria-label="Light theme"
-          title="Light"
+          aria-label=${t("settings").themeLight}
+          title=${t("settings").themeLight}
         >
           ${renderSunIcon()}
         </button>
@@ -233,8 +252,8 @@ export function renderThemeToggle(state: AppViewState) {
           class="theme-toggle__button ${state.theme === "dark" ? "active" : ""}"
           @click=${applyTheme("dark")}
           aria-pressed=${state.theme === "dark"}
-          aria-label="Dark theme"
-          title="Dark"
+          aria-label=${t("settings").themeDark}
+          title=${t("settings").themeDark}
         >
           ${renderMoonIcon()}
         </button>

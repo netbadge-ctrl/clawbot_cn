@@ -17,6 +17,7 @@ import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll";
 import { startLogsPolling, stopLogsPolling, startDebugPolling, stopDebugPolling } from "./app-polling";
 import { refreshChat } from "./app-chat";
 import type { MoltbotApp } from "./app";
+import { type Locale, setLocale } from "../i18n";
 
 type SettingsHost = {
   settings: UiSettings;
@@ -142,6 +143,14 @@ export function setTheme(
   });
 }
 
+export function setLanguage(host: SettingsHost, next: Locale) {
+  if (host.settings.language !== next) {
+    applySettings(host, { ...host.settings, language: next });
+    setLocale(next);
+  }
+}
+
+
 export async function refreshActiveTab(host: SettingsHost) {
   if (host.tab === "overview") await loadOverview(host);
   if (host.tab === "channels") await loadChannelsTab(host);
@@ -192,6 +201,10 @@ export function inferBasePath() {
 export function syncThemeWithSettings(host: SettingsHost) {
   host.theme = host.settings.theme ?? "system";
   applyResolvedTheme(host, resolveTheme(host.theme));
+}
+
+export function syncLanguageWithSettings(host: SettingsHost) {
+  setLocale(host.settings.language ?? "zh");
 }
 
 export function applyResolvedTheme(host: SettingsHost, resolved: ResolvedTheme) {

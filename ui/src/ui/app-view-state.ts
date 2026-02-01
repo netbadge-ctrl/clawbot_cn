@@ -3,6 +3,7 @@ import type { Tab } from "./navigation";
 import type { UiSettings } from "./storage";
 import type { ThemeMode } from "./theme";
 import type { ThemeTransitionContext } from "./theme-transition";
+import type { Locale } from "../i18n";
 import type {
   AgentsListResult,
   ChannelsStatusSnapshot,
@@ -85,7 +86,7 @@ export type AppViewState = {
   configSnapshot: ConfigSnapshot | null;
   configSchema: unknown | null;
   configSchemaLoading: boolean;
-  configUiHints: Record<string, unknown>;
+  configUiHints: import("./types").ConfigUiHints;
   configForm: Record<string, unknown> | null;
   configFormOriginal: Record<string, unknown> | null;
   configFormMode: "form" | "raw";
@@ -150,6 +151,7 @@ export type AppViewState = {
   connect: () => void;
   setTab: (tab: Tab) => void;
   setTheme: (theme: ThemeMode, context?: ThemeTransitionContext) => void;
+  setLanguage: (next: Locale) => void;
   applySettings: (next: UiSettings) => void;
   loadOverview: () => Promise<void>;
   loadAssistantIdentity: () => Promise<void>;
@@ -206,4 +208,33 @@ export type AppViewState = {
   handleLogsLevelFilterToggle: (level: LogLevel) => void;
   handleLogsAutoFollowToggle: (next: boolean) => void;
   handleCallDebugMethod: (method: string, params: string) => Promise<void>;
+
+  // Missing properties added
+  chatStreamStartedAt: number | null;
+  compactionStatus: import("./app-tool-stream").CompactionStatus | null;
+  refreshSessionsAfterChat: boolean;
+  resetToolStream: () => void;
+  resetChatScroll: () => void;
+  handleChatScroll: (event: Event) => void;
+  handleSendChat: (messageOverride?: string, opts?: any) => Promise<void>;
+  handleAbortChat: () => Promise<void>;
+  removeQueuedMessage: (id: string) => void;
+  sidebarOpen: boolean;
+  sidebarContent: string | null;
+  sidebarError: string | null;
+  splitRatio: number;
+  handleOpenSidebar: (content: string) => void;
+  handleCloseSidebar: () => void;
+  handleSplitRatioChange: (ratio: number) => void;
+  configSearchQuery: string;
+  configActiveSection: string | null;
+  configActiveSubsection: string | null;
+  applySessionKey: string;
+  configSchemaVersion: string | null;
+  exportLogs: (lines: string[], label: string) => void;
+  handleLogsScroll: (event: Event) => void;
+  logsCursor: number | null;
+  logsLastFetchAt: number | null;
+  logsLimit: number;
+  logsMaxBytes: number;
 };
